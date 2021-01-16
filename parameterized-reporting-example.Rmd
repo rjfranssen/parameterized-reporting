@@ -1,0 +1,173 @@
+---
+title: "Parameterized Reporting Example"
+params:
+  dataloc: https://raw.githubusercontent.com/tidyverse/ggplot2/master/data-raw/mpg.csv
+  dataname: mpg.csv
+  manufacturer: pontiac
+  date: !r lubridate::today()
+output:
+  html_document:
+    df_print: paged
+    theme: yeti
+    toc: yes
+    toc_depth: 3
+    number_sections: false
+    toc_float:
+      collapsed: false
+      smooth_scroll: true
+    code_folding: hide
+  pdf_document:
+    toc: yes
+    highlight: zenburn
+  word_document:
+    toc: yes
+    highlight: zenburn
+---
+
+
+```{r setup, include = FALSE, message = FALSE, warning = FALSE}
+# Knitr options: https://yihui.org/knitr/options/
+library(lubridate)
+library(dplyr)
+library(plotly)
+knitr::opts_chunk$set(collapse = TRUE
+                      , eval = TRUE
+                      , echo = TRUE
+                      , message = FALSE
+                      , warning = FALSE
+                      , include = TRUE)
+```
+
+
+# About parametrized reports
+
+This is a parameterized report written in in R Markdown. It consists of a combination of text and code chunks and uses `R`, `pandoc`, and `LaTeX` to connect to a data source, create visualizations, and export a single file to `html`, `pdf`, or `word` _without changing the code_. The resulting pages stand on their own, have no dependencies, and can be shared or stored on a central location, like git pages, a site on netlify, or a sharepoint documents library. The data and code are readily accessible for transparency and reproducibility.
+
+Each export format has its own advantages:
+
+
+|                         | html | word |  pdf  |
+|-------------------------|:----:|:----:|:-----:|
+|Standalone               | X    | X    | X     |
+|Easy print               |      | X    | X     |
+|Editable                 |      | X    |       |
+|Static charts/maps       | X    | X    | X     |
+|Interactive charts/maps  | X    |      |       |
+|Embed data for download  | X    |      |       |
+
+For good documentation, check out:  
+* [Parameterized Reports (rmarkdown)](https://garrettgman.github.io/rmarkdown/developer_parameterized_reports.html)  
+* [Knitting with parameters (bookdown)](https://bookdown.org/yihui/rmarkdown/params-knit.html#knit-with-custom-parameters)  
+* [Parameterized R Markdown - incudes `marmap` example (rstudio)](https://docs.rstudio.com/connect/1.7.4/user/param-rmarkdown.html)  
+* [Iterate multiple RMarkdown reports (rstudio community)](https://community.rstudio.com/t/iterate-multiple-rmarkdown-reports/43208)  
+
+
+# Example Report for **`r params$manufacturer`** 
+
+A couple different ways to pull down the file [(so reference)](https://stackoverflow.com/questions/14441729/read-a-csv-from-github-into-r)
+
+
+```{r}
+csv_url <- params$dataloc
+
+download.file(csv_url, destfile = "mpg.csv", method = "curl")
+df <- data.table::fread("mpg.csv")
+```
+
+
+
+## Parameter Specfic Charts {.tabset .tabset-fade .tabset-pills}
+
+The manufacturer **`r params$manufacturer`** has **`r nrow(df[df$manufacturer == params$manufacturer, ])`** vehicles in this dataset.  
+They average **`r mean(df[df$manufacturer == params$manufacturer, ]$cty)`** mpg city and **`r mean(df[df$manufacturer == params$manufacturer, ]$hwy)`** mpg highway. 
+
+### Vehicle Counts
+
+```{r}
+df2 <- df[df$manufacturer == params$manufacturer, ]
+  
+plt <- ggplot(df2) +
+  geom_bar( aes(x = as.factor(cyl), fill = as.factor(cyl)), stat = 'count') +
+  scale_fill_viridis_d(option = "viridis") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  theme(legend.position = "none")
+
+#ggplotly(plt)
+plt
+```
+
+### MPGs
+
+```{r}
+df2 <- df[df$manufacturer == params$manufacturer, ]
+  
+plt <- ggplot(df2) +
+  geom_point(aes(x = displ, y = hwy, color = as.factor(year), label = model), size = 5) +
+  scale_color_viridis_d(option = "viridis") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  theme(legend.position = "none")
+
+#ggplotly(plt)
+plt
+```
+
+
+
+ 
+## All Car Manufacturers {.tabset .tabset-fade .tabset-pills}
+
+### Vehicle Counts
+
+```{r}
+plt <- ggplot(df) +
+  geom_bar( aes(manufacturer, fill = manufacturer), stat = 'count') +
+  scale_fill_viridis_d(option = "viridis") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  theme(legend.position = "none")
+
+#ggplotly(plt)
+plt
+```
+
+
+### MPGs
+
+```{r}
+plt <- ggplot(df) +
+  geom_point(aes(x = cty, y = hwy, color = manufacturer), alpha = 0.6) +
+  scale_fill_viridis_d(option = "viridis") +
+  facet_wrap(~manufacturer) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  theme(legend.position = "none") 
+
+#ggplotly(plt)
+plt
+```
+
+
+<!-- This next snippet is executed manually (see chunk options) and not as part of render_report() -->
+
+```{r, eval = FALSE, include = FALSE, echo = FALSE}
+# Function to render this rmd file as an html doc; run this in R console
+render_report = function(manufacturer = params$manufacturer, date = params$date) {
+  rmarkdown::render(
+    input = "parameterized-reporting-example.Rmd",
+    output_format = "html_document",
+    params = list(
+      manufacturer = manufacturer,
+      date = date
+    ),
+    output_file = paste0('reports/', manufacturer, "_mpg_report_", date, ".html")
+  )
+}
+
+# Test one-off report with default params
+render_report()
+
+# Now loop through and create one report for each manufacturer
+# (note: need to pull down the file and create `df` before running)
+for (i in unique(df$manufacturer)){
+  render_report(manufacturer = i)
+  print(paste0('finished knitting ', i))
+}
+```
